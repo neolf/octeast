@@ -1299,6 +1299,15 @@
             }
             that.showInitedDefault(ptype);
         },
+        preload: function (urls) {
+            if (typeof(urls)=="string") urls = [urls];
+            for (var k in urls) {
+                var url = urls[k];                
+                var img = new Image();  
+                img.src = url;  
+            }
+
+        },
         showInitedDefault: function(type) {
             var mapid = Class.Storage.get('mapid');
             if (!mapid) {
@@ -1311,6 +1320,15 @@
             function(width, height) {
                 this.adaptDevSet(width, height);
             });
+
+            //为了速度所以提前加载
+            var that = this;
+            window.setTimeout(
+            map.getScenicJson(map.config.scenicID,
+            function(obj) {
+                var json = obj.scenicJSON;
+                that.preload(imageLayerUrl = json.imageLayerUrl);
+            }),10);
             map.load3DYouMap(map.config.scenicID,
             function(obj) {
                 if (obj) {
@@ -1706,106 +1724,110 @@
                         }
                         return;
                     }
-                    var apiKey = that.config.apiKey;
-                    var g = that.config.url.replace('%scenicID%', sceneId).replace('%apikey%', apiKey);
-                    $.getJSON(g,
-                    function(scenicJSON) {
-                        for (var j = 0; j < scenicJSON.spots.length; j++) {
-                            var spotJSON = scenicJSON.spots[j];
-                            var typestr = 'point';
-                            var tags = spotJSON.tags;
-                            var tagImgMap = {
-                                '4': 'jingdian',
-                                '5': 'dining',
-                                '6': 'wc',
-                                '7': 'cinema',
-                                '8': 'hotel',
-                                '9': 'shopping',
-                                '10': 'wifi',
-                                '11': 'bus',
-                                '12': 'bank'
-                            };
-                            if (tags.length > 0) {
-                                typestr = tagImgMap[tags[0].tag_id];
-                                typestr = typestr == undefined ? 'point': typestr;
-                            }
-                            if ('here' != spotJSON.index) {
-                                spotJSON.index = typestr + '_m';
-                                spotJSON.spotStyle = {
-                                    graphicOpacity: 1.0,
-                                    graphicWidth: 23,
-                                    graphicHeight: 33
-                                };
-                            }
-                            if (that.config.centerSpot[sceneId] == spotJSON.id) {
-                                that.centerSpot[sceneId] = spotJSON;
-                            }
-                        };
-                        that.scenicJSON = scenicJSON;
-                        that.config.iconPath = that.config.iconPath.replace('%test%', that.config.testDomain);
-                        that.mapInitJSON[sceneId] = {
-                            mapDiv: 'map',
-                            scenicJSON: that.scenicJSON,
-                            IconPath: that.config.iconPath + '/icon_[index].png',
-                            buildPopupInfo: function(feature) {
-                                var fspot = feature.attributes;
-                                if ('here' == feature.attributes.index) {
-                                    return;
-                                }
-                                var tags = feature.attributes.tags;
-                                var typestr = 'point';
-                                if (tags.length > 0) {
-                                    typestr = tagImgMap[tags[0].tag_id];
-                                    typestr = typestr == undefined ? 'point': typestr + '_m';
-                                }
-                                var src = that.config.iconPath + 'icon_jingdian_hover.png';
-                                that.selectSpotJson = feature.attributes;
-                                var result = {};
-                                result.x = feature.geometry.x;
-                                result.y = feature.geometry.y;
-                                fspot.ico_rec = fspot.recShow == 'none' ? '': 'ico_rec';
-                                fspot.ico_voice_disabled = fspot.audiourl && fspot.audiourl.length > 5 ? '': 'disabled';
-                                fspot.ico_photo_disabled = fspot.imglist && fspot.imglist.length > 5 ? '': 'disabled';
-                                fspot.ico_here_disabled = '';
-                                fspot.distance = (!isNaN(parseInt(fspot.distancenum)) && parseInt(fspot.distancenum) > 0) ? '距离' + fspot.distancenum + '米': '距离未知';
-                                win.onespot = fspot;
-                                if (Class.HereContext.activated && Class.HereContext.length() == 1) {
-                                    that.backHere(win.onespot);
-                                }
-                                result.html = Class.template('onespotTpl', win.onespot);
-                                that.setCenterSpot(feature.attributes);
-                                that.selectSpotFlag = false;
-                                return result;
-                            },
-                            setPopupStyle: function(divs) {
-                                var popupDiv = divs.popupDiv;
-                                var groupDiv = divs.groupDiv;
-                                var contentDiv = divs.contentDiv;
-                                var closeDiv = divs.closeDiv;
-                                popupDiv.css('background-color', 'transparent');
-                                popupDiv.css('overflow', 'visible');
-                                groupDiv.css('position', '');
-                                contentDiv.css('position', '');
-                                var cssleft = parseInt(popupDiv.css('left').replace('px', ''));
-                                var csstop = parseInt(popupDiv.css('top').replace('px', ''));
-                                popupDiv.css('left', (cssleft - 21) + 'px');
-                                popupDiv.css('top', (csstop - 42) + 'px');
-                                that.popupDiv = popupDiv;
-                                Class.View.fitPopUp();
-                                popupDiv.on('click',
-                                function(evt) {
-                                    Class.Event.initClickPopup(evt);
-                                });
-                            }
-                        };
-                        that.cacheClassScene(sceneId);
-                        that.showMap(sceneId);
-                        if (Class.isFunction(callback)) {
-                            callback(that);
-                        }
-                    });
+                    that.getScenicJson(sceneId,callback);
                 }
             })();
+        },
+        getScenicJson: function(sceneId,callback) {
+            that = this;
+            var apiKey = that.config.apiKey;
+            var g = that.config.url.replace('%scenicID%', sceneId).replace('%apikey%', apiKey);
+            $.getJSON(g,
+            function(scenicJSON) {
+                for (var j = 0; j < scenicJSON.spots.length; j++) {
+                    var spotJSON = scenicJSON.spots[j];
+                    var typestr = 'point';
+                    var tags = spotJSON.tags;
+                    var tagImgMap = {
+                        '4': 'jingdian',
+                        '5': 'dining',
+                        '6': 'wc',
+                        '7': 'cinema',
+                        '8': 'hotel',
+                        '9': 'shopping',
+                        '10': 'wifi',
+                        '11': 'bus',
+                        '12': 'bank'
+                    };
+                    if (tags.length > 0) {
+                        typestr = tagImgMap[tags[0].tag_id];
+                        typestr = typestr == undefined ? 'point': typestr;
+                    }
+                    if ('here' != spotJSON.index) {
+                        spotJSON.index = typestr + '_m';
+                        spotJSON.spotStyle = {
+                            graphicOpacity: 1.0,
+                            graphicWidth: 23,
+                            graphicHeight: 33
+                        };
+                    }
+                    if (that.config.centerSpot[sceneId] == spotJSON.id) {
+                        that.centerSpot[sceneId] = spotJSON;
+                    }
+                };
+                that.scenicJSON = scenicJSON;
+                that.config.iconPath = that.config.iconPath.replace('%test%', that.config.testDomain);
+                that.mapInitJSON[sceneId] = {
+                    mapDiv: 'map',
+                    scenicJSON: that.scenicJSON,
+                    IconPath: that.config.iconPath + '/icon_[index].png',
+                    buildPopupInfo: function(feature) {
+                        var fspot = feature.attributes;
+                        if ('here' == feature.attributes.index) {
+                            return;
+                        }
+                        var tags = feature.attributes.tags;
+                        var typestr = 'point';
+                        if (tags.length > 0) {
+                            typestr = tagImgMap[tags[0].tag_id];
+                            typestr = typestr == undefined ? 'point': typestr + '_m';
+                        }
+                        var src = that.config.iconPath + 'icon_jingdian_hover.png';
+                        that.selectSpotJson = feature.attributes;
+                        var result = {};
+                        result.x = feature.geometry.x;
+                        result.y = feature.geometry.y;
+                        fspot.ico_rec = fspot.recShow == 'none' ? '': 'ico_rec';
+                        fspot.ico_voice_disabled = fspot.audiourl && fspot.audiourl.length > 5 ? '': 'disabled';
+                        fspot.ico_photo_disabled = fspot.imglist && fspot.imglist.length > 5 ? '': 'disabled';
+                        fspot.ico_here_disabled = '';
+                        fspot.distance = (!isNaN(parseInt(fspot.distancenum)) && parseInt(fspot.distancenum) > 0) ? '距离' + fspot.distancenum + '米': '距离未知';
+                        win.onespot = fspot;
+                        if (Class.HereContext.activated && Class.HereContext.length() == 1) {
+                            that.backHere(win.onespot);
+                        }
+                        result.html = Class.template('onespotTpl', win.onespot);
+                        that.setCenterSpot(feature.attributes);
+                        that.selectSpotFlag = false;
+                        return result;
+                    },
+                    setPopupStyle: function(divs) {
+                        var popupDiv = divs.popupDiv;
+                        var groupDiv = divs.groupDiv;
+                        var contentDiv = divs.contentDiv;
+                        var closeDiv = divs.closeDiv;
+                        popupDiv.css('background-color', 'transparent');
+                        popupDiv.css('overflow', 'visible');
+                        groupDiv.css('position', '');
+                        contentDiv.css('position', '');
+                        var cssleft = parseInt(popupDiv.css('left').replace('px', ''));
+                        var csstop = parseInt(popupDiv.css('top').replace('px', ''));
+                        popupDiv.css('left', (cssleft - 21) + 'px');
+                        popupDiv.css('top', (csstop - 42) + 'px');
+                        that.popupDiv = popupDiv;
+                        Class.View.fitPopUp();
+                        popupDiv.on('click',
+                        function(evt) {
+                            Class.Event.initClickPopup(evt);
+                        });
+                    }
+                };
+                that.cacheClassScene(sceneId);
+                that.showMap(sceneId);
+                if (Class.isFunction(callback)) {
+                    callback(that);
+                }
+            });
         },
         showMap: function(sceneId) {
             var that = this;
